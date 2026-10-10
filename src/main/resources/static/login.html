@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!--
+  Login page (the first page of the system). Plain HTML + CSS + JavaScript.
+  Sends the credentials to POST /login; on success the server creates a session and sets an
+  HttpOnly cookie, then we go to the main page. No token or password is stored in the browser.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login - Cadastro de Pessoas</title>
+<!-- Icon font (Bootstrap Icons, MIT license), bundled locally; /vendor is public so this page can load it -->
+<link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.min.css">
+<style>
+  *{box-sizing:border-box}
+  :root{--g:linear-gradient(135deg,#3b82f6,#1e3a8a)}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',system-ui,sans-serif;color:#0f172a;background:#fff;padding:1rem}
+  .card{width:100%;max-width:400px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:2rem;box-shadow:0 4px 18px rgba(15,23,42,.06)}
+  h1{margin:0 0 .3rem;color:#1e3a8a;font-size:1.7rem;text-align:center}
+  p{margin:0 0 1.5rem;color:#64748b;text-align:center}
+  form{display:grid;gap:1rem}
+  /* Input with a floating label (pure CSS): placeholder=" " lets :placeholder-shown tell if the field is empty */
+  .field{position:relative}
+  .field input{width:100%;padding:1.3rem 1rem .5rem;font-size:1rem;border:2px solid #cbd5e1;border-radius:12px;background:#fff;outline:none;transition:border-color .2s,box-shadow .2s}
+  .field label{position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:#64748b;pointer-events:none;transition:all .18s ease}
+  .field input:focus{border-color:#3b82f6;box-shadow:0 0 0 4px rgba(59,130,246,.15)}
+  .field input:focus+label,.field input:not(:placeholder-shown)+label{top:.75rem;font-size:.75rem;font-weight:600;color:#2563eb}
+  h1 i{margin-right:.3rem}
+  button{border:0;border-radius:12px;padding:.85rem;font-size:1.05rem;font-weight:600;color:#fff;cursor:pointer;background:var(--g);box-shadow:0 4px 12px rgba(30,58,138,.3);transition:transform .15s,box-shadow .15s}
+  button:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(30,58,138,.35)}
+  button:disabled{opacity:.6;cursor:wait;transform:none}
+  #erro{color:#dc2626;font-size:.9rem;min-height:1.2rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1><i class="bi bi-people-fill"></i> Cadastro de Pessoas</h1>
+  <p>Entre para continuar</p>
+  <form id="form">
+    <div class="field"><input id="usuario" placeholder=" " autocomplete="username" required autofocus><label for="usuario">Usuário</label></div>
+    <div class="field"><input id="senha" type="password" placeholder=" " autocomplete="current-password" required><label for="senha">Senha</label></div>
+    <div id="erro"></div>
+    <button type="submit" id="entrar">Entrar</button>
+  </form>
+</div>
+<script>
+/** Reads the CSRF token from the (JavaScript-readable) XSRF-TOKEN cookie; the server requires it in a header. */
+function csrf() {
+  const m = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+// Already logged in? Go straight to the system.
+// This call also makes the server issue the XSRF-TOKEN cookie, which the login request below needs.
+fetch('/api/me').then(r => r.json()).then(d => { if (d.autenticado) location.replace('/'); });
+
+// Submit: send the credentials as a form post; 200 = logged in, 401 = wrong user or password
+document.getElementById('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('entrar'), erro = document.getElementById('erro');
+  btn.disabled = true; erro.textContent = '';
+  try {
+    const r = await fetch('/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-XSRF-TOKEN': csrf()},
+      body: new URLSearchParams({username: usuario.value, password: senha.value})
+    });
+    if (r.ok) return location.replace('/');
+    erro.textContent = r.status === 401 ? 'Usuário ou senha inválidos.' : 'Não foi possível entrar. Atualize a página e tente de novo.';
+    senha.select();
+  } catch (_) {
+    erro.textContent = 'Falha de conexão com o servidor.';
+  }
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>

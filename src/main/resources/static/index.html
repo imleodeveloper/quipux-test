@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<!--
+  Main page of the system: register, search, import, look up nationality and delete people.
+  Plain HTML + CSS + JavaScript (no framework, no build step). Served by Spring Boot as a static file.
+  Requires a logged-in session; otherwise the user is sent to /login.html.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadastro de Pessoas</title>
+<!-- Icon font (Bootstrap Icons, MIT license), bundled locally so the app works offline -->
+<link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.min.css">
+<style>
+  /* ===== Base ===== */
+  *{box-sizing:border-box}
+  /* Brand gradient: used only on buttons */
+  :root{--g:linear-gradient(135deg,#3b82f6,#1e3a8a)}
+  body{margin:0;min-height:100vh;font-family:'Segoe UI',system-ui,sans-serif;color:#0f172a;background:#fff;padding:2rem 1rem}
+  .wrap{max-width:1000px;margin:0 auto}
+  header{text-align:center;margin-bottom:1.5rem}
+  header h1{margin:0;font-size:2.2rem;color:#1e3a8a}
+  header p{margin:.3rem 0 0;color:#64748b}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.4rem;margin-bottom:1.2rem;box-shadow:0 4px 18px rgba(15,23,42,.06)}
+  .card h2{margin:0 0 1rem;font-size:1.15rem;color:#1e3a8a}
+  .titulo-card{display:flex;justify-content:space-between;align-items:center;gap:.8rem;margin-bottom:1rem}
+  .titulo-card h2{margin:0}
+  .titulo-card button{padding:.5rem 1rem}
+  .topo{display:flex;justify-content:flex-end;align-items:center;gap:.8rem;margin-bottom:.5rem;color:#64748b;font-size:.9rem}
+  .topo button{padding:.4rem .9rem;font-size:.85rem}
+  #form{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
+
+  /* ===== Inputs with a floating label (pure CSS) =====
+     The inputs use placeholder=" " so ":placeholder-shown" tells us whether the field is empty:
+     the label sits inside the field and moves up when the field is focused or filled. */
+  .field{position:relative}
+  .field input{width:100%;padding:1.3rem 1rem .5rem;font-size:1rem;border:2px solid #cbd5e1;border-radius:12px;background:#fff;outline:none;transition:border-color .2s,box-shadow .2s}
+  .field label{position:absolute;left:1rem;top:50%;transform:translateY(-50%);color:#64748b;pointer-events:none;transition:all .18s ease;background:transparent}
+  .field input:focus{border-color:#3b82f6;box-shadow:0 0 0 4px rgba(59,130,246,.15)}
+  .field input:focus+label,.field input:not(:placeholder-shown)+label{top:.75rem;transform:translateY(-50%);font-size:.75rem;font-weight:600;color:#2563eb}
+
+  /* ===== Buttons ===== */
+  button{border:0;border-radius:12px;padding:.7rem 1.2rem;font-size:.95rem;font-weight:600;color:#fff;cursor:pointer;background:var(--g);box-shadow:0 4px 12px rgba(30,58,138,.3);transition:transform .15s,box-shadow .15s}
+  button:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(30,58,138,.35)}
+  button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  button i{margin-right:.35rem}
+  h1 i{color:#1e3a8a}
+  .btn-main{grid-column:1/-1;font-size:1.05rem;padding:.85rem}
+  /* Secondary (outlined) button, e.g. "Cancel" */
+  .btn-sec{background:#fff;color:#1e3a8a;border:2px solid #cbd5e1;box-shadow:none}
+  .btn-sec:hover{box-shadow:none;background:#f1f5f9}
+
+  /* ===== People table ===== */
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#f1f5f9;color:#1e3a8a;padding:.8rem;text-align:left;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #cbd5e1}
+  td{padding:.75rem .8rem;border-bottom:1px solid #e2e8f0}
+  tbody tr:hover{background:#f1f5f9}
+  .id{display:inline-block;min-width:2rem;text-align:center;padding:.15rem .5rem;border-radius:99px;background:#dbeafe;color:#1e3a8a;font-weight:700;font-size:.85rem}
+  .acoes{display:flex;gap:.4rem;flex-wrap:wrap}
+  .acoes button{padding:.45rem .8rem;font-size:.85rem}
+  .vazio{text-align:center;color:#64748b;padding:1.5rem}
+  .contador{font-size:.85rem;color:#64748b;margin:.2rem 0 .6rem}
+
+  /* ===== Page size selector and pagination ===== */
+  .barra{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap;margin:.2rem 0 .6rem}
+  .barra .contador{margin:0}
+  .tam{display:flex;align-items:center;gap:.5rem;font-size:.9rem;color:#64748b}
+  .tam select{padding:.4rem .6rem;border:2px solid #cbd5e1;border-radius:10px;font-size:.9rem;background:#fff;color:#0f172a}
+  .pager{display:flex;justify-content:center;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:1rem}
+  .pager button{min-width:2.4rem;padding:.45rem .7rem;font-size:.9rem}
+  .pager button i{margin:0}
+  .pager button.atual{background:#fff;color:#1e3a8a;border:2px solid #3b82f6;box-shadow:none}
+  .pager button:disabled{box-shadow:none}
+
+  /* ===== Toast message (success / error), slides in from the top ===== */
+  #msg{position:fixed;top:1rem;left:50%;transform:translateX(-50%) translateY(-120%);z-index:10;padding:.9rem 1.4rem;border-radius:12px;color:#fff;font-weight:600;max-width:90%;box-shadow:0 10px 30px rgba(0,0,0,.25);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none}
+  #msg.show{transform:translateX(-50%) translateY(0);opacity:1}
+  #msg.ok{background:#16a34a}
+  #msg.err{background:#dc2626}
+
+  /* ===== Modals (delete confirmation and import) ===== */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:20;padding:1rem}
+  .overlay.open{display:flex}
+  .modal{display:block;background:#fff;border-radius:16px;padding:1.5rem;width:100%;max-width:400px;box-shadow:0 20px 50px rgba(15,23,42,.35)}
+  .modal h3{margin:0 0 .3rem;color:#1e3a8a}
+  .modal p{margin:0 0 1rem;color:#64748b}
+  .modal-botoes{display:flex;gap:.6rem;justify-content:flex-end}
+  .modal-import{max-width:520px;max-height:92vh;overflow:auto}
+
+  /* ===== E-mail domain suggestions (dropdown under the e-mail field) ===== */
+  .sugestoes{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #cbd5e1;border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.18);z-index:15;overflow:hidden;display:none}
+  .sugestoes.open{display:block}
+  .sugestoes div{padding:.65rem 1rem;cursor:pointer}
+  .sugestoes div:hover,.sugestoes div.ativo{background:#dbeafe;color:#1e3a8a}
+
+  /* ===== Import modal: format tabs, example, file drop area, pasted text, result ===== */
+  .abas{display:flex;gap:.5rem;margin-bottom:.8rem}
+  .aba{background:#fff;color:#1e3a8a;border:2px solid #cbd5e1;box-shadow:none;padding:.45rem 1.2rem}
+  .aba:hover{box-shadow:none;background:#f1f5f9}
+  .aba.ativa{background:var(--g);color:#fff;border-color:transparent}
+  #exemplo{background:#0f172a;color:#e2e8f0;padding:.9rem;border-radius:12px;font-size:.82rem;overflow:auto;margin:0 0 1rem;max-height:210px;white-space:pre}
+  .upload{display:flex;align-items:center;gap:.7rem;padding:1rem;border:2px dashed #94a3b8;border-radius:12px;cursor:pointer;color:#475569;transition:.2s;word-break:break-all}
+  .upload:hover{border-color:#3b82f6;background:#eff6ff}
+  .upload-icone{display:flex;font-size:1.4rem;color:#64748b}
+  .upload-icone i{margin:0}
+  /* After a file is chosen the box turns green with a check mark */
+  .upload.ok{border:2px solid #16a34a;background:#dcfce7;color:#166534;font-weight:600}
+  .upload.ok .upload-icone{background:#16a34a;color:#fff;border-radius:50%;width:1.7rem;height:1.7rem;align-items:center;justify-content:center;font-size:1rem;flex:none}
+  .ou{text-align:center;color:#64748b;font-size:.85rem;margin:.8rem 0 .4rem}
+  #colar{width:100%;padding:.7rem;border:2px solid #cbd5e1;border-radius:12px;font-family:Consolas,monospace;font-size:.85rem;resize:vertical;outline:none}
+  #colar:focus{border-color:#3b82f6;box-shadow:0 0 0 4px rgba(59,130,246,.15)}
+  .import-resultado{margin:.8rem 0;font-size:.9rem;max-height:160px;overflow:auto}
+  .import-resultado .res-ok{color:#166534;font-weight:600}
+  .import-resultado ul{margin:.4rem 0 0;padding-left:1.2rem;color:#dc2626}
+
+  /* ===== Wide screens: keep CPF and action buttons on one line ===== */
+  @media(min-width:721px){
+    .wrap{max-width:1150px}
+    td:nth-child(3){white-space:nowrap}
+    .acoes{flex-wrap:nowrap}
+    .acoes button{white-space:nowrap}
+  }
+
+  /* ===== Phones: stack the form, turn each table row into a card ===== */
+  @media(max-width:720px){
+    body{padding:1rem .75rem}
+    header h1{font-size:1.6rem}
+    .card{padding:1rem}
+    #form{grid-template-columns:1fr}
+    thead{display:none}
+    table,tbody,tr,td{display:block;width:100%}
+    tr{border:1px solid #e2e8f0;border-radius:12px;padding:.5rem .8rem;margin-bottom:.8rem}
+    td{border:0;padding:.35rem 0;word-break:break-word}
+    /* Each cell shows its column name (from the data-label attribute) since the header is hidden */
+    td[data-label]::before{content:attr(data-label);display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;color:#64748b}
+    .acoes button{flex:1;white-space:nowrap;padding:.45rem .5rem;font-size:.8rem}
+  }
+</style>
+</head>
+<body>
+<!-- Toast used by aviso() -->
+<div id="msg"></div>
+
+<div class="wrap">
+  <div class="topo"><span id="usuario"></span><button type="button" id="sair"><i class="bi bi-box-arrow-right"></i> Sair</button></div>
+  <header>
+    <h1><i class="bi bi-people-fill"></i> Cadastro de Pessoas</h1>
+    <p>Cadastre, pesquise, consulte a nacionalidade e exclua</p>
+  </header>
+
+  <!-- Registration form -->
+  <div class="card">
+    <h2>Nova pessoa</h2>
+    <form id="form">
+      <div class="field"><input name="userName" id="f1" placeholder=" " required><label for="f1">Nome</label></div>
+      <div class="field"><input name="userSurname" id="f2" placeholder=" " required><label for="f2">Sobrenome</label></div>
+      <div class="field"><input name="userDocument" id="f3" inputmode="numeric" maxlength="14" placeholder=" " required><label for="f3">Documento (CPF, 11 dígitos)</label></div>
+      <div class="field"><input name="userEmail" id="f4" autocomplete="off" type="email" placeholder=" " required><label for="f4">E-mail</label><div class="sugestoes" id="sugestoes"></div></div>
+      <button type="submit" class="btn-main">Cadastrar</button>
+    </form>
+  </div>
+
+  <!-- Search, page size, table and pagination -->
+  <div class="card">
+    <div class="titulo-card">
+      <h2>Pessoas cadastradas</h2>
+      <button type="button" id="abrir-import"><i class="bi bi-upload"></i> Importar</button>
+    </div>
+    <div class="field" style="margin-bottom:1rem"><input id="busca" type="search" placeholder=" "><label for="busca"><i class="bi bi-search"></i> Pesquisar por ID, nome, documento, e-mail ou nacionalidade</label></div>
+    <div class="barra">
+      <div class="contador" id="contador"></div>
+      <label class="tam">Mostrar
+        <select id="tamanho"><option>5</option><option selected>10</option><option>20</option><option>50</option></select>
+        por página</label>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>Nome</th><th>Documento</th><th>E-mail</th><th>Possível nacionalidade</th><th>Ações</th></tr></thead>
+      <tbody id="lista"></tbody>
+    </table>
+    <div class="pager" id="pager"></div>
+  </div>
+</div>
+
+<!-- Import modal: example of each format, file picker and a text area to paste the content -->
+<div class="overlay" id="overlay-import">
+  <div class="modal modal-import">
+    <h3><i class="bi bi-upload"></i> Importar pessoas</h3>
+    <p>Veja o exemplo do formato e envie um arquivo ou cole o conteúdo.</p>
+    <div class="abas">
+      <button type="button" class="aba ativa" data-formato="json">JSON</button>
+      <button type="button" class="aba" data-formato="txt">TXT</button>
+    </div>
+    <pre id="exemplo"></pre>
+    <input type="file" id="arquivo" accept=".json,.txt" hidden>
+    <label for="arquivo" class="upload" id="upload">
+      <span class="upload-icone" id="upload-icone"><i class="bi bi-file-earmark-text"></i></span>
+      <span id="upload-texto">Clique para escolher o arquivo (.json ou .txt)</span>
+    </label>
+    <div class="ou">ou cole / digite o conteúdo (JSON ou TXT)</div>
+    <textarea id="colar" rows="5" placeholder="Cole aqui o JSON ou o TXT..." spellcheck="false"></textarea>
+    <div class="import-resultado" id="import-resultado"></div>
+    <div class="modal-botoes">
+      <button type="button" class="btn-sec" id="fechar-import">Fechar</button>
+      <button type="button" id="enviar-import" disabled>Importar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirmation modal -->
+<div class="overlay" id="overlay">
+  <form class="modal" id="modal">
+    <h3><i class="bi bi-trash3"></i> Confirmar exclusão</h3>
+    <p id="modal-txt"></p>
+    <div class="modal-botoes">
+      <button type="button" class="btn-sec" id="cancelar">Cancelar</button>
+      <button type="submit">Excluir</button>
+    </div>
+  </form>
+</div>
+
+<script>
+/* ============================================================
+   State and helpers
+   ============================================================ */
+const msg = document.getElementById('msg');
+let timer;
+let pessoas = [];      // every person returned by GET /list (search and pagination run in the browser)
+let paginaAtual = 1;   // current page, starting at 1
+
+/** Shows a toast for a few seconds. ok = green, otherwise red. */
+function aviso(texto, ok = true) {
+  msg.textContent = texto; msg.className = (ok ? 'ok' : 'err') + ' show';
+  clearTimeout(timer); timer = setTimeout(() => msg.classList.remove('show'), 4500);
+}
+
+/** Turns an API error body into a single readable line (field errors or a general message). */
+function erroTexto(corpo) {
+  if (corpo.campos) return Object.values(corpo.campos).join(' | ');
+  return corpo.erro || 'Erro inesperado';
+}
+
+/** Lowercases and strips accents, so the search ignores case and accents ("joao" finds "João"). */
+function normaliza(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+/* ============================================================
+   API access
+   The session lives in an HttpOnly cookie (JSESSIONID) that the browser sends by itself.
+   Because of that the server also requires a CSRF token: it comes in the readable
+   XSRF-TOKEN cookie and must be echoed in the X-XSRF-TOKEN header.
+   ============================================================ */
+function csrf() {
+  const m = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+/** fetch() wrapper: adds the CSRF header and sends the user to the login page if the session is gone (401). */
+async function api(url, opcoes = {}) {
+  const headers = Object.assign({'X-XSRF-TOKEN': csrf()}, opcoes.headers);
+  const r = await fetch(url, Object.assign({}, opcoes, {headers}));
+  if (r.status === 401) { location.replace('/login.html'); throw new Error('sessão expirada'); }
+  return r;
+}
+
+/** Loads all people from the API and redraws the table. */
+async function carregar() {
+  pessoas = await (await api('/list')).json();
+  render();
+}
+
+/* ============================================================
+   Table: search, pagination and rendering
+   ============================================================ */
+function render() {
+  const termo = normaliza(document.getElementById('busca').value.trim());
+  const lista = document.getElementById('lista');
+
+  // 1) filter by the search term (id, name, surname, document with and without mask, e-mail, nationality)
+  const filtradas = pessoas.filter(p => !termo ||
+    normaliza([p.userId, p.userName, p.userSurname, p.userName + ' ' + p.userSurname, p.userDocument, formataCpf(p.userDocument), p.userEmail, p.nacionalidade || ''].join(' ')).includes(termo));
+
+  // 2) slice the filtered list into the current page
+  const tamanho = Number(document.getElementById('tamanho').value);
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / tamanho));
+  paginaAtual = Math.min(Math.max(1, paginaAtual), totalPaginas);
+  const inicio = (paginaAtual - 1) * tamanho;
+  const visiveis = filtradas.slice(inicio, inicio + tamanho);
+
+  document.getElementById('contador').textContent = filtradas.length
+    ? 'Mostrando ' + (inicio + 1) + '–' + (inicio + visiveis.length) + ' de ' + filtradas.length + ' pessoa(s)'
+    : '0 pessoa(s)';
+  renderPager(totalPaginas);
+
+  // 3) draw the rows (textContent is used for data, so user input can never inject HTML)
+  lista.innerHTML = '';
+  if (!visiveis.length) {
+    const tr = document.createElement('tr'), td = document.createElement('td');
+    td.colSpan = 6; td.className = 'vazio'; td.textContent = 'Nenhuma pessoa encontrada';
+    tr.appendChild(td); lista.appendChild(tr); return;
+  }
+  for (const p of visiveis) {
+    const tr = document.createElement('tr');
+    const tdId = document.createElement('td'); tdId.dataset.label = 'ID'; const badge = document.createElement('span');
+    badge.className = 'id'; badge.textContent = p.userId; tdId.appendChild(badge); tr.appendChild(tdId);
+    // data-label is what the phone layout shows above each value
+    [['Nome', p.userName + ' ' + p.userSurname], ['Documento', formataCpf(p.userDocument)], ['E-mail', p.userEmail], ['Possível nacionalidade', p.nacionalidade || '—']].forEach(([l, v]) => {
+      const td = document.createElement('td'); td.dataset.label = l; td.textContent = v; tr.appendChild(td);
+    });
+    const acoes = document.createElement('td'), box = document.createElement('div');
+    box.className = 'acoes';
+    const bn = document.createElement('button'); bn.innerHTML = '<i class="bi bi-globe-americas"></i> Nacionalidade';
+    bn.onclick = () => nacionalidade(p.userId);
+    const bd = document.createElement('button'); bd.innerHTML = '<i class="bi bi-trash3"></i> Excluir';
+    bd.onclick = () => excluir(p.userId);
+    box.append(bn, bd); acoes.appendChild(box); tr.appendChild(acoes);
+    lista.appendChild(tr);
+  }
+}
+
+/** Draws the page buttons: previous, up to 5 page numbers around the current one, next. */
+function renderPager(total) {
+  const pager = document.getElementById('pager');
+  pager.innerHTML = '';
+  if (total <= 1) return;
+  const add = (texto, pagina, opts = {}) => {
+    const b = document.createElement('button');
+    if (opts.html) b.innerHTML = texto; else b.textContent = texto;
+    b.disabled = !!opts.off;
+    if (opts.atual) b.className = 'atual';
+    b.onclick = () => { paginaAtual = pagina; render(); };
+    pager.appendChild(b);
+  };
+  add('<i class="bi bi-chevron-left"></i>', paginaAtual - 1, {off: paginaAtual === 1, html: true});
+  let ini = Math.max(1, paginaAtual - 2), fim = Math.min(total, ini + 4);
+  ini = Math.max(1, fim - 4);
+  for (let n = ini; n <= fim; n++) add(String(n), n, {atual: n === paginaAtual});
+  add('<i class="bi bi-chevron-right"></i>', paginaAtual + 1, {off: paginaAtual === total, html: true});
+}
+
+// Searching or changing the page size always goes back to the first page
+document.getElementById('busca').addEventListener('input', () => { paginaAtual = 1; render(); });
+document.getElementById('tamanho').addEventListener('change', () => { paginaAtual = 1; render(); });
+
+/* ============================================================
+   Logout
+   ============================================================ */
+document.getElementById('sair').addEventListener('click', async () => {
+  await fetch('/logout', {method: 'POST', headers: {'X-XSRF-TOKEN': csrf()}});
+  location.replace('/login.html');
+});
+
+/* ============================================================
+   Register a person
+   ============================================================ */
+document.getElementById('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  // Normalize before sending so the database always gets clean data
+  const dados = Object.fromEntries(new FormData(e.target));
+  dados.userName = capitaliza(dados.userName).trim();
+  dados.userSurname = capitaliza(dados.userSurname).trim();
+  dados.userDocument = dados.userDocument.replace(/\D/g, '');   // the API expects only the 11 digits
+  dados.userEmail = dados.userEmail.trim().toLowerCase();
+  const r = await api('/registrarName', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(dados)});
+  const corpo = await r.json();
+  if (r.ok) { aviso('Pessoa cadastrada com ID ' + corpo.userId); e.target.reset(); carregar(); }
+  else aviso(erroTexto(corpo), false);
+});
+
+/* ============================================================
+   Delete a person (confirmation modal)
+   ============================================================ */
+let idExcluir = null;   // id waiting for confirmation
+const overlay = document.getElementById('overlay');
+
+function excluir(id) {
+  idExcluir = id;
+  const p = pessoas.find(x => x.userId === id);
+  document.getElementById('modal-txt').textContent = 'Tem certeza que deseja excluir ' + (p ? p.userName + ' ' + p.userSurname : 'o ID ' + id) + '?';
+  overlay.classList.add('open');
+}
+function fechar() { overlay.classList.remove('open'); }
+document.getElementById('cancelar').onclick = fechar;
+overlay.addEventListener('click', e => { if (e.target === overlay) fechar(); });   // click outside closes
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+document.getElementById('modal').addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = await api('/list/' + idExcluir, {method:'DELETE'});
+  const corpo = await r.json();
+  fechar();
+  aviso(r.ok ? corpo.mensagem : erroTexto(corpo), r.ok);
+  carregar();
+});
+
+/* ============================================================
+   Nationality lookup (the API saves the result; we reload to show it in the table)
+   ============================================================ */
+async function nacionalidade(id) {
+  const r = await api('/findNacionalityByPerson/' + id);
+  if (r.ok) carregar();
+  const c = await r.json();
+  aviso(r.ok ? c.pessoa + ': nacionalidade provável ' + c.nacionalidade + ' (' + c.codigoPais + ', ' + (c.probabilidade*100).toFixed(1) + '%)' : erroTexto(c), r.ok);
+}
+
+/* ============================================================
+   Import people from a JSON/TXT file or from pasted text.
+   Each person is sent to POST /registrarName, so the server-side validation is the same
+   as in the form, and every failure is reported by item.
+   ============================================================ */
+const EXEMPLOS = {
+  json: JSON.stringify([
+    {userName: 'Maria', userSurname: 'Silva', userDocument: '123.456.789-09', userEmail: 'maria@gmail.com'},
+    {userName: 'João', userSurname: 'Souza', userDocument: '98765432100', userEmail: 'joao@outlook.com'}
+  ], null, 2),
+  txt: 'Maria;Silva;123.456.789-09;maria@gmail.com\nJoão;Souza;98765432100;joao@outlook.com\n\n# formato: nome;sobrenome;documento;email (uma pessoa por linha)'
+};
+const overlayImp = document.getElementById('overlay-import');
+const arquivoEl = document.getElementById('arquivo'), uploadEl = document.getElementById('upload');
+const resultadoEl = document.getElementById('import-resultado'), enviarEl = document.getElementById('enviar-import');
+const colarEl = document.getElementById('colar');
+let conteudoArquivo = null, nomeArquivo = '';   // content and name of the chosen file
+
+/** Shows the example of the selected format (json or txt) and highlights its tab. */
+function mostraExemplo(f) {
+  document.getElementById('exemplo').textContent = EXEMPLOS[f];
+  document.querySelectorAll('.aba').forEach(a => a.classList.toggle('ativa', a.dataset.formato === f));
+}
+
+/** Forgets the chosen file and puts the upload box back to its initial look. */
+function limpaArquivo() {
+  arquivoEl.value = ''; conteudoArquivo = null; nomeArquivo = '';
+  uploadEl.classList.remove('ok');
+  document.getElementById('upload-icone').innerHTML = '<i class="bi bi-file-earmark-text"></i>';
+  document.getElementById('upload-texto').textContent = 'Clique para escolher o arquivo (.json ou .txt)';
+}
+
+/** Clears everything in the import modal. */
+function resetImport() {
+  limpaArquivo(); colarEl.value = '';
+  resultadoEl.innerHTML = ''; enviarEl.disabled = true;
+}
+
+document.getElementById('abrir-import').onclick = () => { resetImport(); mostraExemplo('json'); overlayImp.classList.add('open'); };
+document.getElementById('fechar-import').onclick = () => overlayImp.classList.remove('open');
+overlayImp.addEventListener('click', e => { if (e.target === overlayImp) overlayImp.classList.remove('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') overlayImp.classList.remove('open'); });
+document.querySelectorAll('.aba').forEach(a => a.onclick = () => mostraExemplo(a.dataset.formato));
+
+// Typing or pasting text replaces a previously chosen file
+colarEl.addEventListener('input', () => {
+  if (colarEl.value.trim() && conteudoArquivo !== null) limpaArquivo();
+  resultadoEl.innerHTML = '';
+  enviarEl.disabled = !colarEl.value.trim();
+});
+
+// Choosing a file: the box turns green with a check mark and shows the file name
+arquivoEl.addEventListener('change', async () => {
+  const f = arquivoEl.files[0];
+  resultadoEl.innerHTML = '';
+  if (!f) return resetImport();
+  if (!/\.(json|txt)$/i.test(f.name)) {
+    resetImport(); resultadoEl.innerHTML = '<ul><li>Formato não suportado: envie um arquivo .json ou .txt.</li></ul>'; return;
+  }
+  colarEl.value = '';
+  conteudoArquivo = await f.text(); nomeArquivo = f.name;
+  uploadEl.classList.add('ok');
+  document.getElementById('upload-icone').innerHTML = '<i class="bi bi-check-lg"></i>';
+  document.getElementById('upload-texto').textContent = f.name;
+  enviarEl.disabled = false;
+});
+
+/**
+ * Converts the text of a .json or .txt source into a list of person objects.
+ * JSON: an array of objects. TXT: one person per line as name;surname;document;e-mail ('#' lines are comments).
+ * Throws an Error with a user-friendly message if the content cannot be read.
+ */
+function lerPessoas(texto, nome) {
+  if (/\.json$/i.test(nome)) {
+    let dados;
+    try { dados = JSON.parse(texto); } catch (_) { throw new Error('JSON inválido: não foi possível ler o conteúdo.'); }
+    if (!Array.isArray(dados)) throw new Error('O JSON deve ser uma lista (array) de pessoas.');
+    return dados.map((o, i) => ({linha: i + 1, ...o}));
+  }
+  return texto.split(/\r?\n/).map((l, i) => ({texto: l.trim(), linha: i + 1}))
+    .filter(l => l.texto && !l.texto.startsWith('#'))
+    .map(l => {
+      const [userName, userSurname, userDocument, userEmail] = l.texto.split(/[;,\t]/).map(x => x.trim());
+      return {linha: l.linha, userName, userSurname, userDocument, userEmail};
+    });
+}
+
+// "Importar" button: parse, send one by one, then show how many worked and why the others failed
+enviarEl.addEventListener('click', async () => {
+  resultadoEl.innerHTML = '';
+  let pessoasImp;
+  // Pasted text wins over a file; its format is detected (starts with [ or { = JSON, otherwise TXT)
+  const colado = colarEl.value.trim();
+  const conteudo = colado || conteudoArquivo;
+  const nome = colado ? (/^[\[{]/.test(colado) ? 'colado.json' : 'colado.txt') : nomeArquivo;
+  try { pessoasImp = lerPessoas(conteudo, nome); }
+  catch (err) { resultadoEl.innerHTML = '<ul><li></li></ul>'; resultadoEl.querySelector('li').textContent = err.message; return; }
+  if (!pessoasImp.length) { resultadoEl.innerHTML = '<ul><li>Não encontrei nenhuma pessoa no conteúdo.</li></ul>'; return; }
+
+  enviarEl.disabled = true;
+  let ok = 0; const erros = [];
+  for (const p of pessoasImp) {
+    // Same normalization as the form. If the document has no digits at all, keep the original text
+    // so the server answers with the "11 digits" message instead of "required".
+    const dados = {
+      userName: capitaliza(String(p.userName ?? '')).trim(),
+      userSurname: capitaliza(String(p.userSurname ?? '')).trim(),
+      userDocument: String(p.userDocument ?? '').replace(/\D/g, '') || String(p.userDocument ?? '').trim(),
+      userEmail: String(p.userEmail ?? '').trim().toLowerCase()
+    };
+    const r = await api('/registrarName', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados)});
+    if (r.ok) ok++;
+    else erros.push('Item ' + p.linha + ': ' + erroTexto(await r.json().catch(() => ({}))));
+  }
+
+  resultadoEl.innerHTML = '';
+  const resumo = document.createElement('div'); resumo.className = 'res-ok';
+  resumo.textContent = ok + ' importada(s)' + (erros.length ? ', ' + erros.length + ' com erro:' : ' com sucesso!');
+  resultadoEl.appendChild(resumo);
+  if (erros.length) {
+    const ul = document.createElement('ul');
+    erros.forEach(t => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+    resultadoEl.appendChild(ul);
+  }
+  if (ok) carregar();
+  enviarEl.disabled = false;
+});
+
+/* ============================================================
+   Smart input formatting
+   ============================================================ */
+
+/** Formats digits as a CPF while typing: 12345678901 -> 123.456.789-01 (ignores non-digits, max 11). */
+function formataCpf(v) {
+  const d = String(v).replace(/\D/g, '').slice(0, 11);
+  return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
+// Particles that stay lowercase inside a name ("Maria da Silva")
+const PARTICULAS = ['de', 'da', 'do', 'das', 'dos', 'e'];
+
+/** Capitalizes each word of a name ("maria DA silva" -> "Maria da Silva"), keeping the particles lowercase. */
+function capitaliza(t) {
+  return t.toLowerCase().replace(/(^|[\s'-])([a-zà-ÿ]+)/g, (m, sep, palavra) =>
+    sep + (sep === ' ' && PARTICULAS.includes(palavra) ? palavra : palavra.charAt(0).toUpperCase() + palavra.slice(1)));
+}
+
+/** Rewrites the field value with fn(value) every time the user types. */
+function aoDigitar(id, fn) {
+  document.getElementById(id).addEventListener('input', e => { e.target.value = fn(e.target.value); });
+}
+aoDigitar('f1', capitaliza);   // name
+aoDigitar('f2', capitaliza);   // surname
+aoDigitar('f3', formataCpf);   // document
+
+/* ------------------------------------------------------------
+   E-mail domain suggestions: as soon as the user types "@", a dropdown offers common domains,
+   filtered by what was typed after the "@". Mouse click, or arrow keys + Enter, picks one; Esc closes.
+   ------------------------------------------------------------ */
+const DOMINIOS = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'live.com', 'uol.com.br', 'bol.com.br', 'terra.com.br'];
+const emailEl = document.getElementById('f4'), sugEl = document.getElementById('sugestoes');
+let sugAtiva = -1;   // index of the highlighted suggestion (-1 = none)
+
+function atualizaSugestoes() {
+  const v = emailEl.value, i = v.indexOf('@');
+  if (i < 0) return fechaSug();
+  const parte = v.slice(i + 1).toLowerCase();
+  const lista = DOMINIOS.filter(d => d.startsWith(parte) && d !== parte);
+  if (!lista.length) return fechaSug();
+  sugEl.innerHTML = ''; sugAtiva = -1;
+  for (const d of lista) {
+    const div = document.createElement('div'); div.textContent = v.slice(0, i + 1) + d;
+    // mousedown (not click) so the choice happens before the input loses focus and closes the list
+    div.addEventListener('mousedown', ev => { ev.preventDefault(); escolheSug(div.textContent); });
+    sugEl.appendChild(div);
+  }
+  sugEl.classList.add('open');
+}
+function fechaSug() { sugEl.classList.remove('open'); sugAtiva = -1; }
+function escolheSug(valor) { emailEl.value = valor; fechaSug(); emailEl.focus(); }
+emailEl.addEventListener('input', atualizaSugestoes);
+emailEl.addEventListener('blur', fechaSug);
+emailEl.addEventListener('keydown', e => {
+  const itens = [...sugEl.children];
+  if (!sugEl.classList.contains('open') || !itens.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    sugAtiva = (sugAtiva + (e.key === 'ArrowDown' ? 1 : -1) + itens.length) % itens.length;
+    itens.forEach((el, k) => el.classList.toggle('ativo', k === sugAtiva));
+  } else if (e.key === 'Enter' && sugAtiva >= 0) {
+    e.preventDefault(); escolheSug(itens[sugAtiva].textContent);
+  } else if (e.key === 'Escape') { e.stopPropagation(); fechaSug(); }
+});
+
+/* ============================================================
+   Start: check the session; if logged in, show the user and load the list
+   ============================================================ */
+fetch('/api/me').then(r => r.json()).then(d => {
+  if (!d.autenticado) return location.replace('/login.html');
+  const u = document.getElementById('usuario'); u.innerHTML = '<i class="bi bi-person-circle"></i> '; u.append(d.usuario);
+  carregar();
+});
+</script>
+</body>
+</html>
